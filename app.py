@@ -1,38 +1,62 @@
-from flask import Flask, request, jsonify, send_from_directory
 import os
+from flask import Flask, render_template, request, redirect, send_from_directory, flash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.secret_key = "secret"  # needed for flash messages
 
-# Folder for local file storage
+# Upload folder
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+
+# ---------------- Home / Dashboard ----------------
 @app.route("/")
-def home():
-    return jsonify({"message": "Welcome to Cloud File Storage API 🚀"})
+def index():
+    files = os.listdir(app.config["UPLOAD_FOLDER"])
+    total_size = sum(os.path.getsize(os.path.join(app.config["UPLOAD_FOLDER"], f)) for f in files)
+    storage_mb = round(total_size / (1024 * 1024), 2)  # convert bytes to MB
+    return render_template(
+        "index.html",
+        files=files,
+        count=len(files),
+        storage=storage_mb
+    )
 
+
+# ---------------- Upload ----------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-
+        flash("No file selected!")
+        return redirect("/")
     file = request.files["file"]
     if file.filename == "":
-        return jsonify({"error": "No filename"}), 400
+        flash("No file selected!")
+        return redirect("/")
+    filename = secure_filename(file.filename)
+    file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+    flash("✅ File uploaded successfully!")
+    return redirect("/")
 
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(filepath)
 
-    return jsonify({"message": "File uploaded", "filename": file.filename})
-
-@app.route("/files", methods=["GET"])
-def list_files():
-    files = os.listdir(UPLOAD_FOLDER)
-    return jsonify({"files": files})
-
-@app.route("/download/<filename>", methods=["GET"])
+# ---------------- Download ----------------
+@app.route("/download/<filename>")
 def download_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename, as_attachment=True)
+
+
+# ---------------- Delete ----------------
+@app.route("/delete/<filename>")
+def delete_file(filename):
+    try:
+        os.remove(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+        flash("🗑️ File deleted successfully!")
+    except FileNotFoundError:
+        flash("⚠️ File not found!")
+    return redirect("/")
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True)

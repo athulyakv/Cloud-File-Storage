@@ -150,3 +150,22 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        username = request.form['username']
+        new_password = request.form['new_password']
+
+        user = User.query.filter_by(username=username).first()
+        if user:
+            user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+            db.session.commit()
+            flash("✅ Password reset successful. Please log in.", "success")
+            return redirect(url_for('login'))
+        else:
+            flash("⚠️ Username not found.", "danger")
+            return redirect(url_for('reset_password'))
+
+    return render_template("reset_password.html")

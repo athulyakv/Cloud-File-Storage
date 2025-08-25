@@ -1,0 +1,4 @@
+Flask
+gunicorn
+streamlit
+boto3
